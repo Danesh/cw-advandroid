@@ -16,22 +16,24 @@
 package com.commonsware.android.appwidget.lorem;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
-import android.widget.Toast;
 
 public class LoremActivity extends Activity {
   @Override
   public void onCreate(Bundle state) {
     super.onCreate(state);
     
-    String word=getIntent().getStringExtra(WidgetProvider.EXTRA_WORD);
+    int threadId = getIntent().getIntExtra(WidgetProvider.EXTRA_WORD, -1);
     
-    if (word==null) {
-      word="We did not get a word!";
+    if (threadId!=-1) {
+        Intent defineIntent = new Intent(Intent.ACTION_VIEW);
+        defineIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        defineIntent.setData(Uri.parse("content://mms-sms/conversations/"+threadId));
+        startActivity(defineIntent);
     }
-    
-    Toast.makeText(this, word, Toast.LENGTH_LONG).show();
-    
+
     finish();
   }
 }

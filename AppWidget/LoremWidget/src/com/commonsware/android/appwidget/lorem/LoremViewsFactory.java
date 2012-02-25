@@ -1,101 +1,119 @@
-/***
-  Copyright (c) 2008-2012 CommonsWare, LLC
-  Licensed under the Apache License, Version 2.0 (the "License"); you may not
-  use this file except in compliance with the License. You may obtain a copy
-  of the License at http://www.apache.org/licenses/LICENSE-2.0. Unless required
-  by applicable law or agreed to in writing, software distributed under the
-  License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
-  OF ANY KIND, either express or implied. See the License for the specific
-  language governing permissions and limitations under the License.
-  
-  From _The Busy Coder's Guide to Advanced Android Development_
-    http://commonsware.com/AdvAndroid
-*/
-
-   
 package com.commonsware.android.appwidget.lorem;
 
-import android.appwidget.AppWidgetManager;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.ContactsContract.PhoneLookup;
 import android.widget.RemoteViews;
 import android.widget.RemoteViewsService;
 
 public class LoremViewsFactory implements RemoteViewsService.RemoteViewsFactory {
-  private static final String[] items={"lorem", "ipsum", "dolor",
-                                        "sit", "amet", "consectetuer",
-                                        "adipiscing", "elit", "morbi",
-                                        "vel", "ligula", "vitae",
-                                        "arcu", "aliquet", "mollis",
-                                        "etiam", "vel", "erat",
-                                        "placerat", "ante",
-                                        "porttitor", "sodales",
-                                        "pellentesque", "augue",
-                                        "purus"};
-  private Context ctxt=null;
-  private int appWidgetId;
 
-  public LoremViewsFactory(Context ctxt, Intent intent) {
-      this.ctxt=ctxt;
-      appWidgetId=intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
-                                      AppWidgetManager.INVALID_APPWIDGET_ID);
-  }
-  
-  @Override
-  public void onCreate() {
-    // no-op
-  }
-  
-  @Override
-  public void onDestroy() {
-    // no-op
-  }
+    List<Entries> allMessages = new ArrayList<Entries>();
+    HashMap<Integer, Integer> threadCount = new HashMap<Integer, Integer>();
+    private Context ctxt = null;
 
-  @Override
-  public int getCount() {
-    return(items.length);
-  }
+    public LoremViewsFactory(Context ctxt, Intent intent) {
+        this.ctxt=ctxt;
+        getSMS();
+    }
 
-  @Override
-  public RemoteViews getViewAt(int position) {
-    RemoteViews row=new RemoteViews(ctxt.getPackageName(),
-                                     R.layout.row);
-    
-    row.setTextViewText(android.R.id.text1, items[position]);
+    @Override
+    public void onCreate() {
+    }
 
-    Intent i=new Intent();
-    Bundle extras=new Bundle();
-    
-    extras.putString(WidgetProvider.EXTRA_WORD, items[position]);
-    i.putExtras(extras);
-    row.setOnClickFillInIntent(android.R.id.text1, i);
+    @Override
+    public void onDestroy() {
+    }
 
-    return(row);
-  }
+    @Override
+    public int getCount() {
+        return allMessages.size();
+    }
 
-  @Override
-  public RemoteViews getLoadingView() {
-    return(null);
-  }
-  
-  @Override
-  public int getViewTypeCount() {
-    return(1);
-  }
+    @Override
+    public RemoteViews getViewAt(int position) {
 
-  @Override
-  public long getItemId(int position) {
-    return(position);
-  }
+        RemoteViews row=new RemoteViews(ctxt.getPackageName(), R.layout.row);
 
-  @Override
-  public boolean hasStableIds() {
-    return(true);
-  }
+        row.setTextViewText(R.id.contact, allMessages.get(position).contact + " - " + threadCount.get(allMessages.get(position).thread_id));
+        row.setTextViewText(R.id.date, allMessages.get(position).date);
+        row.setTextViewText(R.id.content, allMessages.get(position).content);
 
-  @Override
-  public void onDataSetChanged() {
-    // no-op
-  }
+        Intent i=new Intent();
+        Bundle extras=new Bundle();
+
+        extras.putInt(WidgetProvider.EXTRA_WORD, allMessages.get(position).thread_id);
+        i.putExtras(extras);
+        row.setOnClickFillInIntent(R.id.wid_row, i);
+
+        return row;
+    }
+
+    class Entries {
+        String contact;
+        String content;
+        String date;
+        int thread_id;
+        Entries (String p, String s, String d, int id) {
+            contact = p;
+            content = s;
+            date = d;
+            thread_id = id;
+        }
+    }
+
+    public void getSMS() {
+        Uri uriSMSURI = Uri.parse("content://sms/inbox");
+        Cursor cur = ctxt.getContentResolver().query(uriSMSURI, null, null, null, "date");
+        cur.moveToLast();
+        SimpleDateFormat formatter = new SimpleDateFormat("MMM dd");
+        Date iDate = new Date();
+        while (cur.moveToPrevious()) {
+            String address = cur.getString(cur.getColumnIndex("address"));
+            String body = cur.getString(cur.getColumnIndexOrThrow("body"));
+            long date = cur.getLong(cur.getColumnIndexOrThrow("date"));
+            int thread_id = cur.getInt(cur.getColumnIndexOrThrow("thread_id"));
+            Uri uri = Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI, Uri.encode(address));
+            Cursor c = ctxt.getContentResolver().query(uri, new String[]{PhoneLookup.DISPLAY_NAME}, null , null, null);
+            if (threadCount.get(thread_id) == null) {
+                iDate.setTime(date);
+                allMessages.add(new Entries((c.moveToFirst() ? c.getString(0) : address), body, formatter.format(iDate), thread_id));
+            }
+            threadCount.put(thread_id, threadCount.get(thread_id) != null ? threadCount.get(thread_id) + 1 : 1);
+            c.close();
+        }
+    }
+
+    @Override
+    public RemoteViews getLoadingView() {
+        return null;
+    }
+
+    @Override
+    public int getViewTypeCount() {
+        return 1;
+    }
+
+    @Override
+    public long getItemId(int position) {
+        return(position);
+    }
+
+    @Override
+    public boolean hasStableIds() {
+        return true;
+    }
+
+    @Override
+    public void onDataSetChanged() {
+    }
 }
