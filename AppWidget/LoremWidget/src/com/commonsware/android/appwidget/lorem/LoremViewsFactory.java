@@ -78,10 +78,14 @@ public class LoremViewsFactory implements RemoteViewsService.RemoteViewsFactory 
         SimpleDateFormat formatter = new SimpleDateFormat("MMM dd");
         Date iDate = new Date();
         while (cur.moveToPrevious()) {
+            int thread_id = cur.getInt(cur.getColumnIndexOrThrow("thread_id"));
+            if (threadCount.get(thread_id) != null) {
+                threadCount.put(thread_id, threadCount.get(thread_id) != null ? threadCount.get(thread_id) + 1 : 1);
+                continue;
+            }
             String address = cur.getString(cur.getColumnIndex("address"));
             String body = cur.getString(cur.getColumnIndexOrThrow("body"));
             long date = cur.getLong(cur.getColumnIndexOrThrow("date"));
-            int thread_id = cur.getInt(cur.getColumnIndexOrThrow("thread_id"));
             Uri uri = Uri.withAppendedPath(PhoneLookup.CONTENT_FILTER_URI, Uri.encode(address));
             Cursor c = ctxt.getContentResolver().query(uri, new String[]{PhoneLookup.DISPLAY_NAME}, null , null, null);
             if (threadCount.get(thread_id) == null) {
